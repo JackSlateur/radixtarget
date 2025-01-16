@@ -1,4 +1,3 @@
-import re
 import ipaddress
 
 
@@ -29,16 +28,23 @@ def is_ip(host):
     return ipaddress._IPAddressBase in host.__class__.__mro__
 
 
-dns_name_regex = re.compile(r"^[\w]+[\w.-]*$", re.I)
-
-
 def is_dns_name(host):
     """
     Check if the given host is a valid DNS name.
 
-    This function uses a regular expression to determine if the provided
-    host string matches the pattern of a valid DNS name. The pattern allows
-    alphanumeric characters, underscores, hyphens, and periods, and is case-insensitive.
+    This function determines if the provider host string is a valid DNS name.
+    DNS names are quite complex:
+      - may ends with a dot, may be not
+      - is composed of dot-separated arrays of bytes called "labels"
+      - almost all characters are allowed (including unicodes)
+      - can be encoded into ascii, with a specific encoding ("punycodes")
+      - the encoded part must have less than 253 ascii chars
+      - each label must have less than 63 chars
+    To easily support all of this, we try to encode that string into punycode:
+    the stdlib will perform all checks for us.
+    Important note: 10.0.0.1 is a valid DNS name, dead:beef:: is too.
+    It is important that this method is called *after* checking if the value
+    is an IP address.
 
     Args:
         host (str): The host string to check.
@@ -46,7 +52,11 @@ def is_dns_name(host):
     Returns:
         bool: True if the host is a valid DNS name, False otherwise.
     """
-    return bool(dns_name_regex.match(host))
+    try:
+        host.encode("idna")
+        return True
+    except Exception:
+        return False
 
 
 def make_ip(host):
